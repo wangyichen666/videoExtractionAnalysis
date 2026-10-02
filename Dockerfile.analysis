@@ -1,0 +1,19 @@
+FROM node:22-slim AS frontend
+WORKDIR /frontend
+RUN npm install -g pnpm@12.3.4
+COPY BillNote_frontend/package.json BillNote_frontend/pnpm-lock.yaml BillNote_frontend/pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY BillNote_frontend/ ./
+RUN pnpm build:analysis
+
+FROM python:3.12-slim
+WORKDIR /app/backend
+COPY backend/requirements-analysis.txt ./
+RUN pip install --no-cache-dir -r requirements-analysis.txt
+ARG INSTALL_ASR=false
+COPY backend/requirements-analysis-asr.txt ./
+RUN if [ "$INSTALL_ASR" = "true" ]; then apt-get update && apt-get install -y --no-install-recommends ffmpeg && pip install --no-cache-dir -r requirements-analysis-asr.txt && rm -rf /var/lib/apt/lists/*; fi
+COPY backend/ ./
+COPY --from=frontend /frontend/dist /app/BillNote_frontend/dist
+EXPOSE 8483
+CMD ["uvicorn", "analysis_main:app", "--host", "0.0.0.0", "--port", "8483", "--no-access-log"]
